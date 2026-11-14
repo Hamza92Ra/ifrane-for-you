@@ -45,25 +45,26 @@ Do not apply migrations, create administrators, or add inventory to a production
 - Public availability counts active physical units without overlapping confirmed/completed reservations or active maintenance blocks. Check-out is exclusive, so same-day turnover is allowed.
 - Admin approval assigns an active free unit, optionally chosen by the admin; confirmed bookings can be reassigned to another free unit. The database serializes inventory writes with unit locks and rejects overlapping assignments with a GiST exclusion constraint. Maintenance blocks use a separate exclusion constraint and a cross-table lock/check trigger. Deactivation rejects units with future confirmed bookings. Historical reservations are never deleted by the dashboard.
 - Manual admin reservations confirm only after the same inventory checks. Customer data is server-side; the public Supabase Data API has no read or write access to reservations. All exposed tables have RLS enabled. Admin writes use the server database connection after fresh Supabase Auth validation and `admin_profiles` membership.
-- The public submission endpoint validates input, checks same-origin, limits requests in Postgres by keyed IP/email/global buckets, and rechecks availability in a transaction. Use a trusted ingress for reliable IP rate limiting; `RATE_LIMIT_TRUST_PROXY=true` only when your proxy overwrites `X-Real-IP`.
+- The public submission endpoint validates input, checks same-origin, limits requests in Postgres by independent keyed IP and email buckets, and rechecks availability in a transaction. No customer shares a global booking quota. Use a trusted ingress for reliable IP rate limiting; `RATE_LIMIT_TRUST_PROXY=true` only when your proxy overwrites `X-Real-IP`.
 - WhatsApp messages contain a general inquiry only. Booking contact details and dates are never included in a WhatsApp URL.
 
 ## Images and content
 
 - `src/content/stays.ts` maps local optimized WebP photos and localized alt text. The public hero is high priority; offscreen gallery photos are lazy loaded. Sources are in `assets/source/` and do not ship in the web app.
-- Admin images are validated (JPEG/PNG/WebP, max 5 MB, max 8000 px), converted to metadata-free WebP using Sharp, and uploaded to the Supabase `accommodation-images` bucket. FR/EN/AR alt text is required. The admin can select a hero, choose role/order, and delete managed images. Original local images remain as the editorial fallback. New published categories receive their own detail page and booking option once a photo is uploaded.
+- Admin images are validated (JPEG/PNG/WebP, max 5 MB, max 8000 px), converted to metadata-free WebP using Sharp, and uploaded to the Supabase `accommodation-images` bucket. FR/EN/AR alt text is required. Uploads append to the gallery; the admin can select a hero, change order, and delete images. Local editorial photos appear only when the accommodation has no managed gallery rows. New published categories receive their own detail page and booking option once a photo is uploaded.
 - Dictionaries are in `src/i18n/index.ts` and `src/i18n/booking.ts`. Locale URLs, `lang`, `dir`, metadata, and sitemap cover FR/EN/AR. The language switch stores a one-year preference cookie.
 - The supplied HTML concept is an external design reference. The site uses Ifrane For You branding throughout. Automated Instagram access was throttled, so brand claims rely on the user-supplied name, contacts, and property photos.
 
 ## Database checks
 
-Run against a **disposable migrated test database** only:
+Run against a **local, disposable Supabase stack** only. `supabase start` applies the existing migration to the isolated local database; it never touches the production project:
 
 ```bash
-TEST_DATABASE_URL='postgresql://...' node scripts/test-reservations.mjs
+npx supabase start
+TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:54322/postgres' node scripts/test-reservations.mjs
 ```
 
-For a remote isolated test project, also set `ALLOW_REMOTE_TEST_DATABASE=yes`. The script creates temporary inventory, exercises simultaneous last-unit confirmations, overlap rejection, same-day turnover, cancellation, maintenance conflict, room deactivation, pending approval, and public-role write denial, then removes its rows. These tests could not be executed in this workspace because no Supabase credentials or local Docker/Postgres runtime were provided.
+The database test scripts reject non-loopback URLs. CI starts its own local Supabase stack, then tests reservations, simultaneous last-unit confirmations, pricing, authentication, protected admin actions, image upload/order/removal, and customer rate-limit isolation through the local application. The production migration is not reapplied.
 
 ## Security and launch notes
 

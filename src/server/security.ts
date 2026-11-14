@@ -1,24 +1,33 @@
 import "server-only";
-import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { db } from "./db";
+import { rateLimitBuckets } from "./rate-limit-buckets";
 
 export function sameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   return Boolean(origin && origin === request.nextUrl.origin);
 }
-function hash(value: string): string {
-  const key = process.env.RATE_LIMIT_SECRET;
-  if (!key || key.length < 32) throw new Error("RATE_LIMIT_NOT_CONFIGURED");
-  return createHmac("sha256", key).update(value).digest("hex");
-}
-export async function checkRateLimit(request: NextRequest, email?: string): Promise<boolean> {
+
+export async function checkRateLimit(request: NextRequest, identifier?: string): Promise<boolean> {
+  const isAdminLogin = Boolean(identifier && identifier.startsWith("admin:"));
+  const cleanEmail = isAdminLogin ? identifier!.replace(/^admin:/, "") : identifier;
+  const scope = isAdminLogin ? "auth" : "booking";
+
   const ip = request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim()
-    || (process.env.RATE_LIMIT_TRUST_PROXY === "true" ? request.headers.get("x-real-ip")?.trim() : null);
-  const buckets: Array<{key:string;limit:number}> = [{key:"global:requests",limit:120}];
-  if (ip) buckets.push({key:"ip:"+hash(ip),limit:8});
-  if (email) buckets.push({key:"email:"+hash(email.toLowerCase()),limit:4});
+    || (process.env.RATE_LIMIT_TRUST_PROXY === "true"
+      ? (request.headers.get("x-real-ip")?.trim() || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim())
+      : null) || null;
+
+  // Independent identities retain the same abuse limits without sharing a ceiling.
+  const buckets = rateLimitBuckets(scope, ip, cleanEmail, process.env.RATE_LIMIT_SECRET || "");
+
   const sql = db();
+
+  // Prune expired rate limit entries (5% chance per request) to prevent table bloat
+  if (Math.random() < 0.05) {
+    sql`delete from private.request_rate_limits where window_started_at < now() - interval '1 hour'`.catch(() => {});
+  }
+
   for (const bucket of buckets) {
     const rows = await sql`insert into private.request_rate_limits (bucket, window_started_at, attempts)
       values (${bucket.key}, now(), 1)

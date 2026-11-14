@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
+import { requireIsolatedTestDatabase } from './test-database-guard.mjs';
 
-const url = process.env.TEST_DATABASE_URL;
-if (!url) { console.error('Set TEST_DATABASE_URL to an isolated database with the migration applied.'); process.exit(2); }
-const host = new URL(url).hostname;
-if (!['localhost','127.0.0.1','::1'].includes(host) && process.env.ALLOW_REMOTE_TEST_DATABASE !== 'yes') {
-  console.error('Remote database test requires ALLOW_REMOTE_TEST_DATABASE=yes and must use an isolated non-production project.'); process.exit(2);
-}
+const url = requireIsolatedTestDatabase();
 const sql = postgres(url, {max:5,prepare:false});
 const slug = `qa-${randomUUID().slice(0,8)}`;
 let typeId, unitId;
@@ -21,7 +17,7 @@ async function create(status,from,to,unit=unitId) {
 }
 async function rejects(fn,label) {let failed=false;try{await fn()}catch{failed=true}assert.ok(failed,label);console.log('PASS',label)}
 try {
-  const type=await sql`insert into public.accommodation_types (slug,names,max_guests,published) values (${slug},${JSON.stringify({fr:'QA',en:'QA'})}::jsonb,2,false) returning id`;
+  const type=await sql`insert into public.accommodation_types (slug,names,max_guests,published) values (${slug},${sql.json({fr:'QA',en:'QA'})},2,false) returning id`;
   typeId=type[0].id;
   const unit=await sql`insert into public.accommodation_units (type_id,unit_code) values (${typeId}::uuid,'QA-1') returning id`;
   unitId=unit[0].id;

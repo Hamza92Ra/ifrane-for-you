@@ -36,8 +36,13 @@ export async function customStay(slug:string, locale:Locale) {
     const row=rows[0];
     const imageRows=await db()`select storage_path,alt_text,width,height,role from public.accommodation_images where type_id=${row.id}::uuid order by sort_order,created_at`;
     if(!imageRows.length)return null;
-    const origin=process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const images:Photo[]=imageRows.map(i=>({src:`${origin}/storage/v1/object/public/accommodation-images/${String(i.storage_path).split("/").map(encodeURIComponent).join("/")}`,width:i.width,height:i.height,alt:{fr:String(i.alt_text?.fr||""),en:String(i.alt_text?.en||""),ar:String(i.alt_text?.ar||"")}}));
+    const origin=process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const images:Photo[]=imageRows.map(i=>({
+      src: i.storage_path.startsWith("local:")
+        ? `/${i.storage_path.replace(/^local:/, "")}`
+        : `${origin}/storage/v1/object/public/accommodation-images/${String(i.storage_path).split("/").map(encodeURIComponent).join("/")}`,
+      width:i.width,height:i.height,alt:{fr:String(i.alt_text?.fr||""),en:String(i.alt_text?.en||""),ar:String(i.alt_text?.ar||"")}
+    }));
     const hero=imageRows.findIndex(i=>i.role==="hero");
     return {name:String(row.names?.[locale]||row.names?.fr||slug),description:String(row.descriptions?.[locale]||row.descriptions?.fr||""),amenities:Array.isArray(row.amenities?.[locale])?row.amenities[locale].filter((v:unknown):v is string=>typeof v==="string"):[],photos:images,hero:images[hero>=0?hero:0]};
   } catch { return null; }
@@ -49,7 +54,22 @@ export async function otherStays(locale:Locale) {
     const rows=await db()`select t.slug,t.names,i.storage_path,i.width,i.height,i.alt_text from public.accommodation_types t
       join lateral (select storage_path,width,height,alt_text from public.accommodation_images where type_id=t.id order by (role='hero') desc,sort_order,created_at limit 1) i on true
       where t.published and t.slug not in ('dome','cabin') order by t.created_at`;
-    const origin=process.env.NEXT_PUBLIC_SUPABASE_URL;
-    return rows.map(r=>({slug:String(r.slug),name:String(r.names?.[locale]||r.names?.fr||r.slug),photo:{src:`${origin}/storage/v1/object/public/accommodation-images/${String(r.storage_path).split("/").map(encodeURIComponent).join("/")}`,width:r.width as number,height:r.height as number,alt:String(r.alt_text?.[locale]||r.alt_text?.fr||"")}}));
+    const origin=process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    return rows.map(r=>{
+      const path = String(r.storage_path);
+      const src = path.startsWith("local:")
+        ? `/${path.replace(/^local:/, "")}`
+        : `${origin}/storage/v1/object/public/accommodation-images/${path.split("/").map(encodeURIComponent).join("/")}`;
+      return {
+        slug:String(r.slug),
+        name:String(r.names?.[locale]||r.names?.fr||r.slug),
+        photo:{
+          src,
+          width:r.width as number,
+          height:r.height as number,
+          alt:String(r.alt_text?.[locale]||r.alt_text?.fr||"")
+        }
+      };
+    });
   } catch {return []}
 }
