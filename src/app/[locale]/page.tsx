@@ -16,7 +16,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const t = getDictionary(locale);
   return { title: t.brand, description: t.heroBody, alternates: { canonical: `/${locale}`, languages: { fr: "/fr", en: "/en", ar: "/ar" } } };
 }
-export const revalidate = 60;
+// These pages query the live accommodation catalog, which must never be queried during build.
+export const dynamic = "force-dynamic";
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
