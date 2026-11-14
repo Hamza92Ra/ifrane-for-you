@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and validation tests
+        run: npm run test
+
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
+
+      - name: Start isolated Supabase stack
+        run: npx supabase start
+
+      - name: Export local test credentials
+        shell: bash
+        run: |
+          npx supabase status -o env > /tmp/ifrane-supabase-test.env
+          source /tmp/ifrane-supabase-test.env
+          {
+            echo "TEST_DATABASE_URL=$DB_URL"
+            echo "DATABASE_URL=$DB_URL"
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"
+            echo "SUPABASE_SECRET_KEY=$SERVICE_ROLE_KEY"
+            echo "RATE_LIMIT_SECRET=ci-only-rate-limit-secret-0123456789abcdef"
+            echo "TEST_SITE_URL=http://127.0.0.1:3000"
+          } >> "$GITHUB_ENV"
+
+      - name: Start local application
+        shell: bash
+        run: |
+          npm run start > /tmp/ifrane-next-test.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl --silent --fail http://127.0.0.1:3000/fr/book > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/ifrane-next-test.log
+          exit 1
+
+      - name: Reservation, auth, concurrency and admin integration tests
+        run: npm run test:integration
+
+      - name: Show local app logs on failure
+        if: failure()
+        run: cat /tmp/ifrane-next-test.log || true

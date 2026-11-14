@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     qualities: [65, 75],
-    remotePatterns: process.env.NEXT_PUBLIC_SUPABASE_URL ? [{ protocol: "https", hostname: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname }] : []
+    remotePatterns: process.env.NEXT_PUBLIC_SUPABASE_URL ? [{ protocol: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).protocol.slice(0, -1) as "http" | "https", hostname: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname }] : []
   },
   async headers() {
     return [{

@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { z } from "zod";
 import { db } from "./db";
 import { validStayDates } from "./validation";
+import { stays, isStaySlug } from "@/content/stays";
 
 type Tx = postgres.TransactionSql;
 export class ActionError extends Error { constructor(public code: string) { super(code); } }
@@ -25,7 +26,7 @@ function allowedSocialUrl(value:string, domain:string) {
 }
 async function audit(tx: Tx, actor: string, action: string, table: string, id: string | null, before: unknown, after: unknown) {
   await tx`insert into public.audit_logs (actor_user_id, action, entity_table, entity_id, before_data, after_data)
-    values (${actor}::uuid, ${action}, ${table}, ${id}::uuid, ${JSON.stringify(before)}::jsonb, ${JSON.stringify(after)}::jsonb)`;
+    values (${actor}::uuid, ${action}, ${table}, ${id}::uuid, ${before ? tx.json(before as postgres.JSONValue) : null}, ${after ? tx.json(after as postgres.JSONValue) : null})`;
 }
 async function freeUnit(tx: Tx, typeId: string, checkIn: string, checkOut: string, selectedId?: string) {
   const units = await tx`select u.id from public.accommodation_units u where u.type_id = ${typeId}::uuid and u.active
@@ -151,11 +152,11 @@ export async function performAdminAction(data: FormData, actor: string): Promise
           const excess = await tx`select 1 from public.reservations where type_id = ${id}::uuid and status = 'CONFIRMED' and check_out > current_date and guest_count > ${maxGuests} limit 1`;
           if (excess.length) throw new ActionError("CAPACITY_CONFLICT");
         }
-        const after = await tx`update public.accommodation_types set slug=${slug}, names=${JSON.stringify(names)}::jsonb, descriptions=${JSON.stringify(descriptions)}::jsonb, amenities=${JSON.stringify(amenities)}::jsonb, max_guests=${maxGuests}, base_price=${price}, currency=${currency}, published=${published} where id=${id}::uuid returning *`;
+        const after = await tx`update public.accommodation_types set slug=${slug}, names=${tx.json(names)}, descriptions=${tx.json(descriptions)}, amenities=${tx.json(amenities)}, max_guests=${maxGuests}, base_price=${price}, currency=${currency}, published=${published} where id=${id}::uuid returning *`;
         await audit(tx, actor, "update_type", "accommodation_types", id, before[0], after[0]);
       } else {
         if (published) throw new ActionError("CREATE_AS_DRAFT_FIRST");
-        const after = await tx`insert into public.accommodation_types (slug,names,descriptions,amenities,max_guests,base_price,currency,published) values (${slug},${JSON.stringify(names)}::jsonb,${JSON.stringify(descriptions)}::jsonb,${JSON.stringify(amenities)}::jsonb,${maxGuests},${price},${currency},${published}) returning *`;
+        const after = await tx`insert into public.accommodation_types (slug,names,descriptions,amenities,max_guests,base_price,currency,published) values (${slug},${tx.json(names)},${tx.json(descriptions)},${tx.json(amenities)},${maxGuests},${price},${currency},${published}) returning *`;
         await audit(tx, actor, "add_type", "accommodation_types", after[0].id, null, after[0]);
       }
     });
@@ -172,7 +173,7 @@ export async function performAdminAction(data: FormData, actor: string): Promise
     const locationText = { fr: field(data, "location_fr", 500), en: field(data, "location_en", 500), ar: field(data, "location_ar", 500) };
     await sql.begin(async (tx) => {
       const before = await tx`select * from public.business_settings where id=1 for update`;
-      const after = await tx`update public.business_settings set whatsapp_e164=${whatsapp || null}, contact_email=${email || null}, instagram_url=${instagram || null}, facebook_url=${facebook || null}, booking_policy=${JSON.stringify(bookingPolicy)}::jsonb, arrival_policy=${JSON.stringify(arrivalPolicy)}::jsonb, location_text=${JSON.stringify(locationText)}::jsonb where id=1 returning *`;
+      const after = await tx`update public.business_settings set whatsapp_e164=${whatsapp || null}, contact_email=${email || null}, instagram_url=${instagram || null}, facebook_url=${facebook || null}, booking_policy=${tx.json(bookingPolicy)}, arrival_policy=${tx.json(arrivalPolicy)}, location_text=${tx.json(locationText)} where id=1 returning *`;
       await audit(tx, actor, "settings", "business_settings", null, before[0], after[0]);
     });
     return "settings_updated";
@@ -235,6 +236,28 @@ export async function performAdminAction(data: FormData, actor: string): Promise
       await audit(tx, actor, "image_meta", "accommodation_images", id, before[0], after[0]);
     });
     return "image_updated";
+  }
+  if (action === "seed_default_photos") {
+    const slug = field(data, "slug", 20);
+    if (!isStaySlug(slug)) throw new ActionError("INVALID_INPUT");
+    await sql.begin(async (tx) => {
+      const types = await tx`select id from public.accommodation_types where slug = ${slug} for update`;
+      if (!types.length) throw new ActionError("NOT_FOUND");
+      const typeId = types[0].id;
+      const stay = stays[slug];
+      const allPhotos = [stay.hero, ...stay.photos];
+      for (let i = 0; i < allPhotos.length; i++) {
+        const p = allPhotos[i];
+        const localPath = `local:${p.src.replace(/^\//, "")}`;
+        const role = i === 0 ? "hero" : "gallery";
+        const alt = { fr: p.alt.fr, en: p.alt.en, ar: p.alt.ar || p.alt.fr };
+        await tx`insert into public.accommodation_images (type_id, storage_path, alt_text, role, sort_order, width, height)
+          values (${typeId}::uuid, ${localPath}, ${tx.json(alt)}, ${role}, ${i}, ${p.width}, ${p.height})
+          on conflict (storage_path) do update set sort_order = ${i}`;
+      }
+      await audit(tx, actor, "seed_default_photos", "accommodation_images", typeId, null, { slug, count: allPhotos.length });
+    });
+    return "photos_seeded";
   }
   throw new ActionError("INVALID_ACTION");
 }

@@ -9,6 +9,11 @@ import { displayStay } from "@/server/photos";
 import { getDictionary, isLocale } from "@/i18n";
 import { bookingText } from "@/i18n/booking";
 import { otherStays } from "@/server/catalog";
+import type { Photo } from "@/content/stays";
+
+// Managed galleries can be shorter than the original editorial photo sets.
+// Every visual slot must stay inside the active gallery after an admin removes photos.
+const photoAt = (photos: Photo[], index: number) => photos[Math.min(index, photos.length - 1)];
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -25,7 +30,13 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const t = getDictionary(locale);
   const [dome, cabin, more] = await Promise.all([displayStay("dome"), displayStay("cabin"), otherStays(locale)]);
   const localHero = dome.hero.src === "/images/dome/sunset-exterior.webp";
-  const homeGallery = [dome.photos[0], cabin.photos[3], dome.photos[1], cabin.photos[4], dome.photos[7], cabin.photos[5]];
+  const domeMain = photoAt(dome.photos, 0), domeInset = photoAt(dome.photos, 3);
+  const cabinInset = photoAt(cabin.photos, 5);
+  const experienceDome = photoAt(dome.photos, 2), experienceCabin = photoAt(cabin.photos, 4);
+  const homeGallery = [...new Map([
+    photoAt(dome.photos, 0), photoAt(cabin.photos, 3), photoAt(dome.photos, 1),
+    photoAt(cabin.photos, 4), photoAt(dome.photos, 7), photoAt(cabin.photos, 5)
+  ].map(photo => [photo.src, photo] as const)).values()];
   return <>
     {localHero&&<><link rel="preload" as="image" href="/images/dome/sunset-exterior-mobile.webp" media="(max-width: 600px)" fetchPriority="high"/><link rel="preload" as="image" href={dome.hero.src} media="(min-width: 601px)" fetchPriority="high"/></>}
     <SiteHeader locale={locale} overlay />
@@ -52,7 +63,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <div className="page-container"><p className="eyebrow stays-label">{t.staysEyebrow}</p></div>
         <article className="stay-feature stay-feature--dome page-container" data-reveal>
           <Link className="stay-card-link" href={`/${locale}/stays/dome`} aria-label={`${t.discover}: ${t.dome.label}`}/>
-          <div className="stay-feature-visual"><div className="stay-main-image"><Image src={dome.photos[0].src} alt={dome.photos[0].alt[locale] ?? dome.photos[0].alt.fr} fill sizes="(max-width: 800px) 100vw, 55vw" /></div><div className="stay-inset-image"><Image src={dome.photos[3].src} alt={dome.photos[3].alt[locale] ?? dome.photos[3].alt.fr} fill sizes="(max-width: 800px) 40vw, 18vw" /></div></div>
+          <div className="stay-feature-visual"><div className="stay-main-image"><Image src={domeMain.src} alt={domeMain.alt[locale] ?? domeMain.alt.fr} fill sizes="(max-width: 800px) 100vw, 55vw" /></div><div className="stay-inset-image"><Image src={domeInset.src} alt={domeInset.alt[locale] ?? domeInset.alt.fr} fill sizes="(max-width: 800px) 40vw, 18vw" /></div></div>
           <div className="stay-feature-copy"><p className="eyebrow">{t.domeNumber}</p><h2>{t.domeTitle}</h2><p>{t.domeBody}</p><div className="feature-tags"><span>{t.dome.features[0]}</span><span>{t.dome.features[2]}</span></div><span className="text-link">{t.discover}<span aria-hidden="true">↗</span></span></div>
         </article>
       </section>
@@ -60,14 +71,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <section className="cabin-wrap"><article className="stay-feature stay-feature--cabin page-container" data-reveal>
         <Link className="stay-card-link" href={`/${locale}/stays/cabin`} aria-label={`${t.discover}: ${t.cabin.label}`}/>
         <div className="stay-feature-copy"><p className="eyebrow eyebrow--light">{t.cabinNumber}</p><h2>{t.cabinTitle}</h2><p>{t.cabinBody}</p><div className="feature-tags"><span>{t.cabin.features[0]}</span><span>{t.cabin.features[2]}</span></div><span className="text-link text-link--light">{t.discover}<span aria-hidden="true">↗</span></span></div>
-        <div className="stay-feature-visual"><div className="stay-main-image"><Image src={cabin.hero.src} alt={cabin.hero.alt[locale] ?? cabin.hero.alt.fr} fill sizes="(max-width: 800px) 100vw, 45vw" /></div><div className="stay-inset-image"><Image src={cabin.photos[5].src} alt={cabin.photos[5].alt[locale] ?? cabin.photos[5].alt.fr} fill sizes="(max-width: 800px) 40vw, 18vw" /></div></div>
+        <div className="stay-feature-visual"><div className="stay-main-image"><Image src={cabin.hero.src} alt={cabin.hero.alt[locale] ?? cabin.hero.alt.fr} fill sizes="(max-width: 800px) 100vw, 45vw" /></div><div className="stay-inset-image"><Image src={cabinInset.src} alt={cabinInset.alt[locale] ?? cabinInset.alt.fr} fill sizes="(max-width: 800px) 40vw, 18vw" /></div></div>
       </article></section>
 
       {more.length>0&&<section className="more-stays section-pad page-container"><p className="eyebrow">{t.staysEyebrow}</p><h2 className="display-title">{t.navStays}</h2><div className="more-stays-grid">{more.map(item=><Link href={`/${locale}/stays/${item.slug}`} className="more-stay" key={item.slug}><div className="more-stay-image"><Image src={item.photo.src} alt={item.photo.alt} fill sizes="(max-width:700px) 90vw, 35vw"/></div><h3>{item.name}<span aria-hidden="true">↗</span></h3></Link>)}</div></section>}
 
       <section className="experience-section section-pad"><div className="page-container experience-grid">
         <div className="experience-copy" data-reveal><p className="eyebrow">{t.experienceEyebrow}</p><h2 className="display-title">{t.experienceTitle}</h2><p>{t.experienceBody}</p></div>
-        <div className="experience-images" data-reveal><div className="experience-image experience-image--one"><Image src={dome.photos[2].src} alt={dome.photos[2].alt[locale] ?? dome.photos[2].alt.fr} fill sizes="(max-width: 800px) 55vw, 28vw" /></div><div className="experience-image experience-image--two"><Image src={cabin.photos[4].src} alt={cabin.photos[4].alt[locale] ?? cabin.photos[4].alt.fr} fill sizes="(max-width: 800px) 40vw, 17vw" /></div></div>
+        <div className="experience-images" data-reveal><div className="experience-image experience-image--one"><Image src={experienceDome.src} alt={experienceDome.alt[locale] ?? experienceDome.alt.fr} fill sizes="(max-width: 800px) 55vw, 28vw" /></div><div className="experience-image experience-image--two"><Image src={experienceCabin.src} alt={experienceCabin.alt[locale] ?? experienceCabin.alt.fr} fill sizes="(max-width: 800px) 40vw, 17vw" /></div></div>
       </div></section>
 
       <section id="gallery" className="gallery-section section-pad"><div className="page-container"><div className="gallery-heading" data-reveal><div><p className="eyebrow">{t.galleryEyebrow}</p><h2 className="display-title">{t.galleryTitle}</h2></div><p>{t.galleryBody}</p></div><PhotoGallery photos={homeGallery} locale={locale}/></div></section>
