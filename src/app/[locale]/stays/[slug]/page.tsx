@@ -7,12 +7,12 @@ import { PhotoGallery } from "@/components/PhotoGallery";
 import { Inquiry } from "@/components/Inquiry";
 import { isStaySlug, stays } from "@/content/stays";
 import { displayStay } from "@/server/photos";
-import { getDictionary, isLocale, locales } from "@/i18n";
+import { getDictionary, isLocale } from "@/i18n";
 import { bookingText } from "@/i18n/booking";
 import { businessText, customStay, publicType } from "@/server/catalog";
 
-export function generateStaticParams() { return locales.flatMap((locale) => ([{ locale, slug: "dome" }, { locale, slug: "cabin" }])); }
-export const revalidate = 60;
+// Room pages depend on the live catalog; render on request rather than during deployment.
+export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string }> }): Promise<Metadata> {
   const { locale, slug } = await params;
   if (!isLocale(locale)) return {};
