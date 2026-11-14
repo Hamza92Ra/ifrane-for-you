@@ -34,12 +34,14 @@ async function withAdminTimeout<T>(operation: PromiseLike<T>): Promise<T> {
     if (timer) clearTimeout(timer);
   }
 }
-async function loadAdminQueries<T extends readonly PromiseLike<unknown>[]>(queries: T): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
-  const result: unknown[] = [];
+async function loadAdminQueries(queries: readonly PromiseLike<unknown>[]): Promise<AdminRow[][]> {
+  const result: AdminRow[][] = [];
   for (const query of queries) {
-    result.push(await withAdminTimeout(query));
+    const rows = await withAdminTimeout(query);
+    if (!Array.isArray(rows)) throw new Error("ADMIN_QUERY_INVALID_RESULT");
+    result.push(rows as AdminRow[]);
   }
-  return result as { [K in keyof T]: Awaited<T[K]> };
+  return result;
 }
 function AdminUnavailable() {
   return <main id="main" className="admin-login"><div className="admin-login-card"><p className="eyebrow">Ifrane For You</p><h1>Administration</h1><p role="alert" className="admin-alert">Le tableau de bord est temporairement indisponible. Veuillez réessayer.</p><a className="admin-button" href="/admin">Réessayer</a></div></main>;
