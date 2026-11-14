@@ -17,13 +17,42 @@ function F({action,children,className=""}:{action:string;children:React.ReactNod
 function Field({label,name,type="text",value,required=false,placeholder}:{label:string;name:string;type?:string;value?:string|number|null;required?:boolean;placeholder?:string}) {return <label>{label}<input name={name} type={type} defaultValue={value??""} required={required} placeholder={placeholder}/></label>}
 function TypeOptions({types}:{types:AdminRow[]}) {return <>{types.map(t=><option key={t.id} value={t.id}>{t.names?.fr||t.slug}</option>)}</>}
 function TypeEditor({type}:{type?:AdminRow}) {return <F action={type?"update_type":"add_type"} className="admin-editor">{type&&<input type="hidden" name="id" value={type.id}/>}<div className="admin-fields"><Field label="Identifiant URL" name="slug" value={type?.slug} required/><Field label="Nom français" name="name_fr" value={type?.names?.fr} required/><Field label="English name" name="name_en" value={type?.names?.en} required/><Field label="الاسم العربي" name="name_ar" value={type?.names?.ar}/><Field label="Capacité maximale par unité" name="max_guests" type="number" value={type?.max_guests} placeholder="À confirmer"/><Field label="Tarif de base" name="base_price" type="number" value={type?.base_price} placeholder="À confirmer"/><Field label="Devise" name="currency" value={type?.currency} placeholder="MAD"/></div><label>Description FR<textarea name="description_fr" defaultValue={type?.descriptions?.fr??""}/></label><label>Description EN<textarea name="description_en" defaultValue={type?.descriptions?.en??""}/></label><label>Description AR<textarea name="description_ar" dir="rtl" defaultValue={type?.descriptions?.ar??""}/></label><label>Équipements confirmés FR (un par ligne)<textarea name="amenities_fr" defaultValue={(type?.amenities?.fr??[]).join("\n")}/></label><label>Verified amenities EN<textarea name="amenities_en" defaultValue={(type?.amenities?.en??[]).join("\n")}/></label><label>المرافق المؤكدة AR<textarea dir="rtl" name="amenities_ar" defaultValue={(type?.amenities?.ar??[]).join("\n")}/></label><label className="admin-check"><input type="checkbox" name="published" defaultChecked={type?.published??false}/> Publié</label><button type="submit" className="admin-button">{type?"Enregistrer":"Ajouter la catégorie"}</button></F>}
+// The admin page reads many independently useful tables. Keeping these reads
+// sequential prevents a cold serverless function from exhausting its small
+// PostgreSQL connection pool while preserving a bounded response time.
+const ADMIN_QUERY_TIMEOUT_MS = 8000;
+async function withAdminTimeout<T>(operation: PromiseLike<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(operation),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("ADMIN_QUERY_TIMEOUT")), ADMIN_QUERY_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+async function loadAdminQueries<T extends readonly PromiseLike<unknown>[]>(queries: T): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
+  const result: unknown[] = [];
+  for (const query of queries) {
+    result.push(await withAdminTimeout(query));
+  }
+  return result as { [K in keyof T]: Awaited<T[K]> };
+}
+function AdminUnavailable() {
+  return <main id="main" className="admin-login"><div className="admin-login-card"><p className="eyebrow">Ifrane For You</p><h1>Administration</h1><p role="alert" className="admin-alert">Le tableau de bord est temporairement indisponible. Veuillez réessayer.</p><a className="admin-button" href="/admin">Réessayer</a></div></main>;
+}
+
 export default async function AdminPage({searchParams}:{searchParams:Promise<{q?:string;status?:string;ok?:string;error?:string}>}) {
   const query = await searchParams;
-  const admin = await currentAdmin();
+  const admin = await withAdminTimeout(currentAdmin()).catch(() => undefined);
+  if (admin === undefined) return <AdminUnavailable/>;
   if (!admin) return <main id="main" className="admin-login"><div className="admin-login-card"><p className="eyebrow">Ifrane For You</p><h1>Administration</h1><p>Connectez-vous pour gérer les réservations et les hébergements.</p>{!authConfigured()&&<p className="admin-alert">Connexion Supabase à configurer. Consultez le guide d'installation.</p>}{query.error&&<p className="admin-alert" role="alert">Connexion refusée ou service indisponible.</p>}<form method="post" action="/api/admin/login" className="admin-form"><Field label="Adresse e-mail" name="email" type="email" required/><Field label="Mot de passe" name="password" type="password" required/><button className="admin-button">Se connecter</button></form></div></main>;
   const sql=db();
   const q=String(query.q??"").slice(0,80), filter=["PENDING","CONFIRMED","CANCELLED","COMPLETED"].includes(query.status??"")?query.status!:"";
-  const [types,units,reservations,blocks,images,settings,stats,upcoming,pricing] = await Promise.all([
+  const loaded = await loadAdminQueries([
     sql`select * from public.accommodation_types order by created_at`,
     sql`select u.*,t.names from public.accommodation_units u join public.accommodation_types t on t.id=u.type_id order by t.slug,u.unit_code`,
     sql`select r.*,t.names,u.unit_code from public.reservations r join public.accommodation_types t on t.id=r.type_id left join public.accommodation_units u on u.id=r.unit_id where (${filter}='' or r.status::text=${filter}) and (${q}='' or r.reference ilike ${'%'+q+'%'} or r.customer_name ilike ${'%'+q+'%'} or r.customer_email ilike ${'%'+q+'%'}) order by r.created_at desc limit 100`,
@@ -33,7 +62,12 @@ export default async function AdminPage({searchParams}:{searchParams:Promise<{q?
     sql`select (select count(*) from public.reservations)::int as total,(select count(*) from public.reservations where status='PENDING')::int as pending,(select count(*) from public.reservations where status='CONFIRMED')::int as confirmed,(select count(*) from public.accommodation_units where active)::int as active_units,(select count(distinct unit_id) from public.reservations where status='CONFIRMED' and check_in<=current_date and check_out>current_date)::int as occupied,(select count(distinct b.unit_id) from public.availability_blocks b join public.accommodation_units u on u.id=b.unit_id where b.active and u.active and b.period @> current_date)::int as blocked`,
     sql`select reference,customer_name,check_in,check_out from public.reservations where status='CONFIRMED' and (check_in between current_date and current_date+7 or check_out between current_date and current_date+7) order by check_in limit 20`,
     sql`select p.*,t.names from public.pricing_rules p join public.accommodation_types t on t.id=p.type_id order by p.start_date desc limit 30`
-  ]);
+  ] as const).catch((error: unknown) => {
+    console.error("[admin] Dashboard query failed:", error instanceof Error ? error.message : "UNKNOWN");
+    return null;
+  });
+  if (!loaded || !loaded[6]?.[0]) return <AdminUnavailable/>;
+  const [types,units,reservations,blocks,images,settings,stats,upcoming,pricing] = loaded;
   const s=stats[0], setting=settings[0];
   return <main id="main" className="admin-page"><header className="admin-top"><div><p className="eyebrow">Ifrane For You</p><h1>Administration</h1></div><form method="post" action="/api/admin/logout"><button className="admin-quiet">Se déconnecter</button></form></header><nav className="admin-nav" aria-label="Sections de l'administration"><a href="#overview">Vue d'ensemble</a><a href="#reservations">Réservations</a><a href="#inventory">Hébergements</a><a href="#photos">Photos</a><a href="#settings">Paramètres</a></nav>
   {query.ok&&<p className="admin-success" role="status">Modification enregistrée.</p>}{query.error&&<p className="admin-alert" role="alert">Action refusée : {query.error}</p>}
