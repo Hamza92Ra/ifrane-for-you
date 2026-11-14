@@ -44,7 +44,7 @@ async function run() {
     if (base_price === null && rules.length === 0) return null;
     let total = 0;
     let hasSpecialRates = false;
-    let currency = (baseCurrency ? String(baseCurrency).trim() : "") || (rules[0]?.currency ? String(rules[0].currency).trim() : "") || "MAD";
+    const currency = (baseCurrency ? String(baseCurrency).trim() : "") || (rules[0]?.currency ? String(rules[0].currency).trim() : "") || "MAD";
     for (let i = 0; i < nights; i++) {
       const cur = new Date(inDate);
       cur.setUTCDate(cur.getUTCDate() + i);
