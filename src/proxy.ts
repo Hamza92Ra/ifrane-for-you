@@ -20,7 +20,8 @@ export async function proxy(request: NextRequest) {
       }
     }
   });
-  await client.auth.getUser();
+  // Verify claims here without a second Auth API round trip when using asymmetric JWTs.
+  await client.auth.getClaims();
   return response;
 }
 
