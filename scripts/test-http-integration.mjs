@@ -77,6 +77,11 @@ try {
   assert.ok(!/error=/.test(login.headers.get("location") || ""), "admin signs in");
   const cookie = login.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
   assert.ok(cookie, "login sets a session cookie");
+  const dashboard = await fetch(`${siteUrl}/admin`, { headers: { cookie }, redirect: "manual" });
+  assert.equal(dashboard.status, 200, "authenticated admin page loads");
+  const dashboardHtml = await dashboard.text();
+  assert.ok(dashboardHtml.includes("admin-page"), "authenticated admin sees the dashboard, not the login form");
+  assert.ok(dashboardHtml.includes("Vue d'ensemble"), "admin dashboard data renders");
   const added = await post("/api/admin/actions", form({ action: "add_unit", type_id: typeId, unit_code: "HTTP-2" }), cookie);
   assert.equal(added.status, 303);
   assert.match(added.headers.get("location") || "", /ok=unit_added/);
