@@ -44,7 +44,7 @@ async function loadAdminQueries(queries: readonly PromiseLike<unknown>[]): Promi
   return result;
 }
 function AdminUnavailable() {
-  return <main id="main" className="admin-login"><div className="admin-login-card"><p className="eyebrow">Ifrane For You</p><h1>Administration</h1><p role="alert" className="admin-alert">Le tableau de bord est temporairement indisponible. Veuillez réessayer.</p><a className="admin-button" href="/admin">Réessayer</a></div></main>;
+  return <main id="main" className="admin-login"><div className="admin-login-card"><p className="eyebrow">Ifrane For You</p><h1>Administration</h1><p role="alert" className="admin-alert">Le tableau de bord est temporairement indisponible. Veuillez réessayer.</p><form action="/admin" method="get"><button className="admin-button" type="submit">Réessayer</button></form></div></main>;
 }
 
 export default async function AdminPage({searchParams}:{searchParams:Promise<{q?:string;status?:string;ok?:string;error?:string}>}) {
