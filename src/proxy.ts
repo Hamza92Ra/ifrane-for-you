@@ -11,14 +11,17 @@ export async function proxy(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(items) {
+      setAll(items, headers) {
         items.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
         items.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        // Preserve cache directives supplied by Supabase when refreshing tokens.
+        if (headers) Object.entries(headers).forEach(([name, value]) => response.headers.set(name, value));
       }
     }
   });
-  await client.auth.getUser();
+  // Verify claims here without a second Auth API round trip when using asymmetric JWTs.
+  await client.auth.getClaims();
   return response;
 }
 
