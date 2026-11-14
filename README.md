@@ -1,6 +1,6 @@
 # Ifrane For You
 
-Photo-led hospitality website and reservation platform built on the existing editorial design. The business name is **Ifrane For You**. The real dome and cabin photographs are in `public/images/`, with extracted originals retained under `assets/source/`. The repository has no Git metadata in this workspace; no code was pushed or deployed.
+Photo-led hospitality website and reservation platform built on the existing editorial design. The business name is **Ifrane For You**. The real dome and cabin photographs are in `public/images/`, with extracted originals retained under `assets/source/`. The website is deployed to Vercel at https://ifrane-for-you.vercel.app. The Supabase production schema was applied on 2026-11-14. Admin access and verified physical inventory still need setup.
 
 ## Run locally
 
@@ -23,8 +23,8 @@ npm run start
 
 ## Connect a new Supabase project
 
-1. Create a **new, non-production** Supabase project. Review [`supabase/migrations/20261113110248_hospitality_core.sql`](supabase/migrations/20261113110248_hospitality_core.sql) before applying it. This migration has not been applied to any database. Use the Supabase CLI (`npx supabase link --project-ref <ref>` and `npx supabase db push`) only after confirming the target project. A disposable local Supabase instance can run it with `npx supabase start` and `npx supabase db reset` if Docker is available.
-2. Copy the project URL, **publishable key**, and **secret key** into `.env.local`. The secret key is used only by a server-side photo endpoint. Set `DATABASE_URL` to the project's Postgres connection string, preferably the transaction pooler for serverless hosting. The database password stays server-side. `prepare:false` is already configured for pooler compatibility.
+1. The reviewed migration [`supabase/migrations/20261114162651_hospitality_core.sql`](supabase/migrations/20261114162651_hospitality_core.sql) is already applied to Supabase project `rxuvkuhxgllvfcflanpw`; its filename matches the remote migration-history version. **Do not apply it again to that project.** For a new isolated environment, confirm the project before running `npx supabase link --project-ref <ref>` and `npx supabase db push`; a disposable local instance can run it with `npx supabase start` and `npx supabase db reset`.
+2. Copy the project URL, **publishable key**, and **secret key** into `.env.local`. The secret key is used only by a server-side photo endpoint. Set `DATABASE_URL` or Vercel's `POSTGRES_URL` to the project's Postgres connection string, preferably the transaction pooler for serverless hosting. The database password stays server-side. `prepare:false` is already configured for pooler compatibility.
 3. Set `RATE_LIMIT_SECRET` to a random value of at least 32 bytes (`openssl rand -hex 32`). Set `SITE_URL` to the verified HTTPS site origin before launch. Keep `.env.local` out of version control. The existing `.gitignore` excludes it.
 4. In Supabase Auth, create an administrator user using the dashboard. Grant the role by inserting that user's UUID into `public.admin_profiles` using the SQL editor:
 
