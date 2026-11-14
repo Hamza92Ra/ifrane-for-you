@@ -8,8 +8,8 @@ import { requireIsolatedTestDatabase } from "./test-database-guard.mjs";
 const databaseUrl = requireIsolatedTestDatabase();
 const apiUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY;
-const siteUrl = process.env.TEST_SITE_URL || "http://127.0.0.1:3000";
-if (!apiUrl || !serviceKey || new URL(apiUrl).hostname !== "127.0.0.1" || new URL(siteUrl).hostname !== "127.0.0.1") {
+const siteUrl = process.env.TEST_SITE_URL || "http://localhost:3000";
+if (!apiUrl || !serviceKey || new URL(apiUrl).hostname !== "127.0.0.1" || new URL(siteUrl).hostname !== "localhost") {
   throw new Error("HTTP integration tests require local Supabase and a local web server");
 }
 

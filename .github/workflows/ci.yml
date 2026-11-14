@@ -51,7 +51,7 @@ jobs:
             echo "SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"
             echo "SUPABASE_SECRET_KEY=$SERVICE_ROLE_KEY"
             echo "RATE_LIMIT_SECRET=ci-only-rate-limit-secret-0123456789abcdef"
-            echo "TEST_SITE_URL=http://127.0.0.1:3000"
+            echo "TEST_SITE_URL=http://localhost:3000"
           } >> "$GITHUB_ENV"
 
       - name: Start local application
@@ -59,7 +59,7 @@ jobs:
         run: |
           npm run start > /tmp/ifrane-next-test.log 2>&1 &
           for attempt in {1..60}; do
-            if curl --silent --fail http://127.0.0.1:3000/fr/book > /dev/null; then exit 0; fi
+            if curl --silent --fail http://localhost:3000/fr/book > /dev/null; then exit 0; fi
             sleep 2
           done
           cat /tmp/ifrane-next-test.log
