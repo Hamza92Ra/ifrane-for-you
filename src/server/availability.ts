@@ -40,8 +40,10 @@ export async function calculatePrice(typeSlug: string, checkIn: string, checkOut
     const dayStr = cur.toISOString().slice(0, 10);
     const match = rules.find((r) => dayStr >= r.start_date && dayStr < r.end_date);
     if (match) {
+      // Never add rates expressed in different currencies without an exchange rate.
+      // An incomplete or mixed-currency estimate is safer than a misleading total.
+      if (String(match.currency).trim() !== currency) return null;
       total += Number(match.nightly_price);
-      currency = String(match.currency).trim();
       hasSpecialRates = true;
     } else if (base_price !== null) {
       total += Number(base_price);
