@@ -56,7 +56,6 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <section id="intro" className="intro-section section-pad page-container" data-reveal>
         <p className="eyebrow">{t.introEyebrow}</p>
         <div className="intro-grid"><h2 className="display-title">{t.introTitle}</h2><p className="intro-copy">{t.introBody}</p></div>
-        <div className="intro-rule"><span>01</span><span aria-hidden="true">✳</span><span>02</span></div>
       </section>
 
       <section id="stays" className="stays-section">
@@ -64,13 +63,13 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <article className="stay-feature stay-feature--dome page-container" data-reveal>
           <Link className="stay-card-link" href={`/${locale}/stays/dome`} aria-label={`${t.discover}: ${t.dome.label}`}/>
           <div className="stay-feature-visual"><div className="stay-main-image"><Image src={domeMain.src} alt={domeMain.alt[locale] ?? domeMain.alt.fr} fill sizes="(max-width: 800px) 100vw, 55vw" /></div><div className="stay-inset-image"><Image src={domeInset.src} alt={domeInset.alt[locale] ?? domeInset.alt.fr} fill sizes="(max-width: 800px) 40vw, 18vw" /></div></div>
-          <div className="stay-feature-copy"><p className="eyebrow">{t.domeNumber}</p><h2>{t.domeTitle}</h2><p>{t.domeBody}</p><div className="feature-tags"><span>{t.dome.features[0]}</span><span>{t.dome.features[2]}</span></div><span className="text-link">{t.discover}<span aria-hidden="true">↗</span></span></div>
+          <div className="stay-feature-copy"><p className="eyebrow">{t.domeNumber}</p><h2>{t.domeTitle}</h2><p>{t.domeBody}</p><div className="feature-tags"><span>{t.dome.features[0]}</span><span>{t.dome.features[2]}</span></div><span className="text-link">{t.discover}</span></div>
         </article>
       </section>
 
       <section className="cabin-wrap"><article className="stay-feature stay-feature--cabin page-container" data-reveal>
         <Link className="stay-card-link" href={`/${locale}/stays/cabin`} aria-label={`${t.discover}: ${t.cabin.label}`}/>
-        <div className="stay-feature-copy"><p className="eyebrow eyebrow--light">{t.cabinNumber}</p><h2>{t.cabinTitle}</h2><p>{t.cabinBody}</p><div className="feature-tags"><span>{t.cabin.features[0]}</span><span>{t.cabin.features[2]}</span></div><span className="text-link text-link--light">{t.discover}<span aria-hidden="true">↗</span></span></div>
+        <div className="stay-feature-copy"><p className="eyebrow eyebrow--light">{t.cabinNumber}</p><h2>{t.cabinTitle}</h2><p>{t.cabinBody}</p><div className="feature-tags"><span>{t.cabin.features[0]}</span><span>{t.cabin.features[2]}</span></div><span className="text-link text-link--light">{t.discover}</span></div>
         <div className="stay-feature-visual"><div className="stay-main-image"><Image src={cabin.hero.src} alt={cabin.hero.alt[locale] ?? cabin.hero.alt.fr} fill sizes="(max-width: 800px) 100vw, 45vw" /></div><div className="stay-inset-image"><Image src={cabinInset.src} alt={cabinInset.alt[locale] ?? cabinInset.alt.fr} fill sizes="(max-width: 800px) 40vw, 18vw" /></div></div>
       </article></section>
 

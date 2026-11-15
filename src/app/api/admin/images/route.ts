@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return new NextResponse("Forbidden", { status: 403 });
   const admin = await currentAdmin();
   if (!admin) return new NextResponse("Forbidden", { status: 403 });
-  const back = new URL("/admin", request.url);
+  const form=await request.formData();
+  const back = new URL(form.get("return_to")==="/admin/gallery"?"/admin/gallery":"/admin", request.url);
   try {
-    const form = await request.formData();
     const typeId = z.uuid().parse(form.get("type_id"));
     const file = form.get("file");
     if (!(file instanceof File) || file.size < 1 || file.size > 5_242_880) throw new Error("INVALID_IMAGE");

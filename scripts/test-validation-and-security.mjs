@@ -4,6 +4,7 @@ import postgres from "postgres";
 import { availabilitySchema, bookingSchema, validStayDates } from "../src/server/validation.ts";
 import { rateLimitBuckets } from "../src/server/rate-limit-buckets.ts";
 import { requireIsolatedTestDatabase } from "./test-database-guard.mjs";
+import { buildBookingQuote } from "../src/server/quote.ts";
 
 const url = process.env.TEST_DATABASE_URL;
 let sql = null;
@@ -52,10 +53,17 @@ async function run() {
     name: "Hamza Ra",
     email: "hamza@example.com",
     phone: "+212679941798",
+    selectedOptions: [],
     requestKey: randomUUID(),
     privacyAccepted: true
   });
   assert.ok(validBooking.success, "complete booking submission is valid");
+
+  const selectedBooking = bookingSchema.safeParse({type:"dome",checkIn:today,checkOut:tomorrow,guests:2,name:"Guest Name",email:"guest@example.com",phone:"+212679941798",requestKey:randomUUID(),privacyAccepted:true,selectedOptions:[{id:randomUUID(),quantity:2}]});
+  assert.ok(selectedBooking.success,"customer may submit selected priced options");
+  const duplicateId=randomUUID();
+  const duplicateOptions=bookingSchema.safeParse({type:"dome",checkIn:today,checkOut:tomorrow,guests:2,name:"Guest Name",email:"guest@example.com",phone:"+212679941798",requestKey:randomUUID(),privacyAccepted:true,selectedOptions:[{id:duplicateId,quantity:1},{id:duplicateId,quantity:1}]});
+  assert.ok(!duplicateOptions.success,"duplicate option selections rejected");
 
   const missingPrivacy = bookingSchema.safeParse({
     type: "cabin",
@@ -96,6 +104,20 @@ async function run() {
   });
   assert.ok(!invalidEmail.success, "malformed email address rejected");
   console.log("PASS: Booking input schema validation");
+
+  const quote=buildBookingQuote({nightlyRates:[{amount:100,currency:"MAD"},{amount:120,currency:"MAD"}],guests:2,options:[
+    {id:"meal",name:{fr:"Repas"},kind:"MEAL",pricingBasis:"PER_PERSON_PER_NIGHT",unitPrice:25,currency:"MAD",quantity:1},
+    {id:"service",name:{fr:"Service"},kind:"SERVICE",pricingBasis:"PER_ITEM",unitPrice:30,currency:"MAD",quantity:2}
+  ]});
+  assert.equal(quote?.lodgingTotal,220);assert.equal(quote?.optionsTotal,160);assert.equal(quote?.total,380);
+  assert.equal(quote?.lines[0].lineTotal,100,"per person per night multiplication");
+  assert.equal(quote?.lines[1].lineTotal,60,"item quantity multiplication");
+  assert.equal(buildBookingQuote({nightlyRates:[{amount:100,currency:"MAD"},null],guests:1,options:[]}),null,"missing real nightly price cannot create a quote");
+  assert.equal(buildBookingQuote({nightlyRates:[{amount:100,currency:"MAD"}],guests:1,options:[{id:"bad",name:{},kind:"MEAL",pricingBasis:"PER_BOOKING",unitPrice:10,currency:"EUR",quantity:1}]}),null,"mixed currencies cannot create a quote");
+  const bases=["PER_BOOKING","PER_NIGHT","PER_PERSON","PER_PERSON_PER_NIGHT","PER_ITEM"];
+  const basisQuote=buildBookingQuote({nightlyRates:[{amount:1,currency:"MAD"},{amount:1,currency:"MAD"}],guests:2,options:bases.map((pricingBasis,index)=>({id:String(index),name:{},kind:"SERVICE",pricingBasis,unitPrice:10,currency:"MAD",quantity:3}))});
+  assert.deepEqual(basisQuote?.lines.map(line=>line.lineTotal),[10,20,20,40,30],"all configured price bases apply their correct multiplier");
+  console.log("PASS: Configured booking quote math and missing-price protections");
 
   const alice = rateLimitBuckets("booking", "192.0.2.1", "alice@example.invalid", RATE_LIMIT_SECRET);
   const bob = rateLimitBuckets("booking", "192.0.2.2", "bob@example.invalid", RATE_LIMIT_SECRET);

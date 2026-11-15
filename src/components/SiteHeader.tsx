@@ -25,7 +25,7 @@ export function SiteHeader({ locale, path = "/", overlay = false }: { locale: Lo
         <Link href={`${base}/#stays`} onClick={close}>{t.navStays}</Link>
         <Link href={`${base}/#gallery`} onClick={close}>{t.navGallery}</Link>
         <Link href={`${base}/#inquire`} onClick={close}>{t.navContact}</Link>
-        <Link href={`${base}/book`} onClick={close}>{bookingText[locale].title}</Link>
+        <Link className="header-book-cta" href={`${base}/book`} onClick={close}>{bookingText[locale].title}</Link>
       </nav>
       <div className="header-actions">
         <div className="language-options" aria-label={t.switchLanguage}>{locales.map(next=><Link key={next} className={`language-link ${next===locale?"language-link--active":""}`} href={`/${next}${path}`} hrefLang={next} lang={next} aria-current={next===locale?"page":undefined} onClick={()=>switchTo(next)}>{next.toUpperCase()}</Link>)}</div>
@@ -37,7 +37,7 @@ export function SiteHeader({ locale, path = "/", overlay = false }: { locale: Lo
       <Link href={`${base}/#stays`} onClick={close}>{t.navStays}</Link>
       <Link href={`${base}/#gallery`} onClick={close}>{t.navGallery}</Link>
       <Link href={`${base}/#inquire`} onClick={close}>{t.navContact}</Link>
-      <Link href={`${base}/book`} onClick={close}>{bookingText[locale].title}</Link>
+      <Link className="mobile-book-nav" href={`${base}/book`} onClick={close}>{bookingText[locale].title}<span aria-hidden="true">→</span></Link>
     </div>
   </header>;
 }

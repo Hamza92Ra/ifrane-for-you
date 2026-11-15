@@ -26,7 +26,6 @@ export function PhotoGallery({ photos, locale, variant = "grid" }: { photos: Pho
     <div className={`photo-grid photo-grid--${variant}`}>
       {photos.map((photo, index) => <button className="photo-tile" type="button" key={photo.src} onClick={() => setActive(index)} aria-label={`${t.viewPhoto}: ${photo.alt[locale] ?? photo.alt.fr}`}>
         <Image src={photo.src} width={photo.width} height={photo.height} alt={photo.alt[locale] ?? photo.alt.fr} sizes="(max-width: 700px) 90vw, (max-width: 1100px) 45vw, 30vw" loading="lazy" />
-        <span className="photo-tile-icon" aria-hidden="true">↗</span>
       </button>)}
     </div>
     <dialog className="lightbox" ref={dialog} aria-label={t.galleryTitle} onClose={() => setActive(null)} onKeyDown={onKeyDown} onClick={(event) => { if (event.target === dialog.current) setActive(null); }} onTouchStart={(event) => { touchStart.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { if (touchStart.current === null) return; const delta = event.changedTouches[0]?.clientX - touchStart.current; if (Math.abs(delta) > 50) move(delta < 0 ? 1 : -1); touchStart.current = null; }}>

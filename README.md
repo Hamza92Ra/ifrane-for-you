@@ -37,6 +37,8 @@ npm run start
 5. Sign in at `/admin`. For each accommodation, enter the **verified** maximum guests per physical unit, then add each real bookable unit separately. The migration seeds the dome and cabin *types* but **zero units and no capacities, prices, or availability**. Until those facts are entered, online booking remains unavailable. New accommodation types start as drafts; add verified FR/EN/AR copy and photography before publishing them.
 6. Review the FR/EN/AR editorial and booking copy with the business, especially Arabic, before publishing. Add verified amenities, rates, check-in/out policies, contact email, and location details if the business supplies them. The supplied WhatsApp number and social URLs are seeded in the migration and editable in admin.
 
+7. Apply the new additive migration [`supabase/migrations/20261114232021_reservation_extras_documents.sql`](supabase/migrations/20261114232021_reservation_extras_documents.sql) to an isolated/local or explicitly approved target before deploying this code. It creates configurable meals/services, reservation price snapshots, protected document summaries, and payment-provider scaffolding. It seeds **no** meal choices, service choices, prices, or deposit percentage. Set `DOCUMENT_TOKEN_SECRET` to a separate random value of at least 32 bytes for private customer PDF downloads. After migration, configure only client-verified rates/options in `/admin`.
+
 Do not apply migrations, create administrators, or add inventory to a production project without explicit approval and verified business data.
 
 ## Booking and inventory rules
@@ -47,6 +49,9 @@ Do not apply migrations, create administrators, or add inventory to a production
 - Manual admin reservations confirm only after the same inventory checks. Customer data is server-side; the public Supabase Data API has no read or write access to reservations. All exposed tables have RLS enabled. Admin writes use the server database connection after fresh Supabase Auth validation and `admin_profiles` membership.
 - The public submission endpoint validates input, checks same-origin, limits requests in Postgres by independent keyed IP and email buckets, and rechecks availability in a transaction. No customer shares a global booking quota. Use a trusted ingress for reliable IP rate limiting; `RATE_LIMIT_TRUST_PROXY=true` only when your proxy overwrites `X-Real-IP`.
 - WhatsApp messages contain a general inquiry only. Booking contact details and dates are never included in a WhatsApp URL.
+- Lodging and optional meal/service prices are quoted from database rates on the server, then snapshotted with the request. If any night lacks a configured rate, or selected options use a different currency, the request cannot be submitted with a fabricated estimate. Configure the accommodation rate and options in the same currency.
+- Meal and service choices are optional; the admin configures their localized labels, price basis (per booking/night/guest/item), and actual rate. Customer PDF summaries use an unguessable HMAC capability token valid for seven days and are generated on request; administrators can download them from each reservation row.
+- Payment is not integrated. The nullable deposit percentage and payment-attempt schema only prepare for later integration; they do not collect or imply payment. Pending requests still do not hold inventory.
 
 ## Images and content
 
