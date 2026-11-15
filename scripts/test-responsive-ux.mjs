@@ -118,6 +118,12 @@ async function run() {
     assert.ok(waLeft && waLeft.left !== "auto", "WhatsApp button moves to the left in RTL mode to avoid obstruction");
     console.log("PASS: WhatsApp float moves to left in RTL mode (left:", waLeft.left, ")");
 
+    const reserveShortcut = await evaluate(`(() => { const el=document.querySelector('.mobile-booking-shortcut'); if(!el)return null; const r=el.getBoundingClientRect(); return {display:getComputedStyle(el).display,href:el.getAttribute('href'),left:r.left,right:r.right,top:r.top,bottom:r.bottom}; })()`);
+    const whatsappBox = await evaluate(`(() => { const el=document.querySelector('.whatsapp-float'); if(!el)return null; const r=el.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; })()`);
+    assert.ok(reserveShortcut && reserveShortcut.display !== "none" && reserveShortcut.href === "/ar/book", "booking shortcut is visible on mobile and localized");
+    assert.ok(reserveShortcut.right <= whatsappBox.left || whatsappBox.right <= reserveShortcut.left || reserveShortcut.bottom <= whatsappBox.top || whatsappBox.bottom <= reserveShortcut.top, "mobile booking and WhatsApp shortcuts do not overlap");
+    console.log("PASS: Mobile booking shortcut is visible, localized, and clear of WhatsApp");
+
     // 2. Test booking page floating WhatsApp hiding
     console.log("Testing Booking page WhatsApp obstruction protection...");
     await loadPage("http://localhost:3000/fr/book", 375, 667);
@@ -128,7 +134,14 @@ async function run() {
       })()
     `);
     assert.equal(waDisplay, "none", "Floating WhatsApp button is hidden on booking page to prevent blocking form controls");
+    const bookingShortcutDisplay = await evaluate("window.getComputedStyle(document.querySelector('.mobile-booking-shortcut')).display");
+    assert.equal(bookingShortcutDisplay,"none","Mobile booking shortcut is hidden inside the booking flow");
     console.log("PASS: WhatsApp float is hidden on booking page");
+
+    await loadPage("http://localhost:3000/fr",320,640);
+    const removedDecorations = await evaluate("!document.querySelector('.intro-rule') && !document.querySelector('.photo-tile-icon')");
+    assert.ok(removedDecorations,"the decorative divider and image corner arrows are removed");
+    console.log("PASS: Screenshot-identified decorative divider and corner arrows are removed");
 
     // 3. Test horizontal overflow and locale direction across page types.
     for (const vp of viewports) {

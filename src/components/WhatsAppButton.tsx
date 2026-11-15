@@ -1,16 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
 import type { Locale } from "@/i18n";
 import { getDictionary } from "@/i18n";
 import { getBookingUrl } from "@/content/booking";
 
-export function WhatsAppButton({locale}:{locale:Locale}) {
-  const [number,setNumber] = useState<string | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/public/settings",{signal:controller.signal}).then(r=>r.ok?r.json():null).then(data=>{if(data)setNumber(data.whatsapp)}).catch(()=>{});
-    return () => controller.abort();
-  },[]);
+export function WhatsAppButton({locale,number}:{locale:Locale;number:string|null}) {
   if (!number) return null;
   const t = getDictionary(locale);
   return <a className="whatsapp-float" href={getBookingUrl(locale,undefined,number)} target="_blank" rel="noopener noreferrer" aria-label={`${t.whatsappLabel} · ${t.inquiryButton}`}>

@@ -1,0 +1,14 @@
+import {db} from "@/server/db";
+import {requireAdminPage} from "@/server/admin-pages";
+import {AdminShell} from "@/components/admin/AdminShell";
+import {AdminField,AdminForm} from "@/components/admin/AdminForms";
+
+export const dynamic="force-dynamic";
+export default async function SettingsPage({searchParams}:{searchParams:Promise<{error?:string;ok?:string}>}){
+  await requireAdminPage();const params=await searchParams;const [setting]=await db()`select * from public.business_settings where id=1`;
+  return <AdminShell active="/admin/settings" title="Paramètres" description="Coordonnées publiques et règles de séjour communiquées aux voyageurs.">
+    {params.ok&&<p className="admin-success" role="status">Modification enregistrée.</p>}{params.error&&<p className="admin-alert" role="alert">Action refusée : {params.error}</p>}
+    <AdminForm action="settings" className="admin-editor" returnTo="/admin/settings"><div className="admin-fields"><AdminField label="WhatsApp international" name="whatsapp" value={setting?.whatsapp_e164} placeholder="Numéro vérifié avec indicatif"/><AdminField label="E-mail de contact" name="contact_email" type="email" value={setting?.contact_email}/><AdminField label="Instagram" name="instagram_url" value={setting?.instagram_url}/><AdminField label="Facebook" name="facebook_url" value={setting?.facebook_url}/><AdminField label="Dépôt futur (pour intégration paiement) %" name="deposit_percent" type="number" value={setting?.deposit_percent} placeholder="Non configuré"/></div><label>Politique de réservation FR<textarea name="booking_policy_fr" defaultValue={setting?.booking_policy?.fr??""}/></label><label>Booking policy EN<textarea name="booking_policy_en" defaultValue={setting?.booking_policy?.en??""}/></label><label>سياسة الحجز AR<textarea dir="rtl" name="booking_policy_ar" defaultValue={setting?.booking_policy?.ar??""}/></label><label>Arrivée et départ FR<textarea name="arrival_policy_fr" defaultValue={setting?.arrival_policy?.fr??""}/></label><label>Check-in and checkout EN<textarea name="arrival_policy_en" defaultValue={setting?.arrival_policy?.en??""}/></label><label>سياسة الوصول والمغادرة AR<textarea dir="rtl" name="arrival_policy_ar" defaultValue={setting?.arrival_policy?.ar??""}/></label><label>Localisation publique FR<textarea name="location_fr" defaultValue={setting?.location_text?.fr??""}/></label><label>Public location EN<textarea name="location_en" defaultValue={setting?.location_text?.en??""}/></label><label>الموقع بالعربية AR<textarea dir="rtl" name="location_ar" defaultValue={setting?.location_text?.ar??""}/></label><button className="admin-button">Enregistrer les paramètres</button></AdminForm>
+    <p className="admin-note">Le pourcentage de dépôt ne déclenche aucun paiement. Aucun paiement n’est proposé actuellement.</p>
+  </AdminShell>;
+}

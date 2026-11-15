@@ -12,7 +12,11 @@ type PriceEstimate = {
   averageNightly: number;
   basePrice: number | null;
   hasSpecialRates: boolean;
+  lodgingTotal: number;
+  optionsTotal: number;
+  lines: { id:string; name:Record<string,string>; kind:"MEAL"|"SERVICE"; pricingBasis:string; quantity:number; unitPrice:number; lineTotal:number; currency:string }[];
 };
+type BookingOption={id:string;kind:"MEAL"|"SERVICE";name:string;description:string;pricingBasis:string;unitPrice:number;currency:string};
 type Confirmation = {
   reference: string;
   status: "PENDING";
@@ -21,6 +25,7 @@ type Confirmation = {
   checkOut: string;
   guests: number;
   priceEstimate?: PriceEstimate | null;
+  documentToken: string;
 };
 
 export function BookingForm({ locale, initialStay, options }: { locale: Locale; initialStay?: string; options: StayOption[] }) {
@@ -37,6 +42,8 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
   const [available, setAvailable] = useState<number | null>(null);
   const [maxGuests, setMaxGuests] = useState<number | null>(null);
   const [priceEstimate, setPriceEstimate] = useState<PriceEstimate | null>(null);
+  const [bookingOptions,setBookingOptions]=useState<BookingOption[]>([]);
+  const [selectedOptions,setSelectedOptions]=useState<{id:string;quantity:number}[]>([]);
   const [whatsapp, setWhatsapp] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,6 +63,13 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
     return () => controller.abort();
   }, []);
 
+  useEffect(()=>{
+    const controller=new AbortController();
+    fetch(`/api/booking-options?type=${encodeURIComponent(stay)}&locale=${locale}`,{signal:controller.signal})
+      .then(r=>r.ok?r.json():{options:[]}).then(data=>setBookingOptions(data.options??[])).catch(()=>{});
+    return ()=>controller.abort();
+  },[stay,locale]);
+
   const message = (code: string) =>
     ({
       INVALID_DATES: t.invalidDates,
@@ -66,11 +80,13 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
       CAPACITY: t.capacity,
       SERVICE_UNAVAILABLE: t.serviceError,
       ALREADY_PROCESSED: t.alreadyProcessed
+      ,PRICE_NOT_CONFIGURED:t.priceNotConfigured,INVALID_OPTIONS:t.invalidOptions
     }[code] ?? t.serviceError);
 
   const resetAvailability = () => {
     setAvailable(null);
     setPriceEstimate(null);
+    setSelectedOptions([]);
     setError("");
     setRequestKey(crypto.randomUUID());
   };
@@ -81,12 +97,13 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
     setError("");
     setBusy(true);
     try {
-      const query = new URLSearchParams({ type: stay, checkIn, checkOut, guests: String(guests) });
+      const query = new URLSearchParams({ type: stay, checkIn, checkOut, guests: String(guests), selectedOptions:JSON.stringify(selectedOptions) });
       const response = await fetch(`/api/availability?${query}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "SERVICE_UNAVAILABLE");
       if (!data.configured) throw new Error("NOT_CONFIGURED");
       if (guests > data.maxGuests) throw new Error("CAPACITY");
+      if(!data.priceConfigured)throw new Error("PRICE_NOT_CONFIGURED");
       setAvailable(data.available);
       setMaxGuests(data.maxGuests);
       setPriceEstimate(data.priceEstimate ?? null);
@@ -106,7 +123,7 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
       const response = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: stay, checkIn, checkOut, guests, name, email, phone, requestKey, privacyAccepted: privacy })
+        body: JSON.stringify({ type: stay, checkIn, checkOut, guests, name, email, phone, requestKey, privacyAccepted: privacy,selectedOptions })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "SERVICE_UNAVAILABLE");
@@ -136,14 +153,20 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
           <div><dt>{t.stay}</dt><dd>{stayName(confirmation.type)}</dd></div>
           <div><dt>{t.checkIn} / {t.checkOut}</dt><dd>{confirmation.checkIn} → {confirmation.checkOut}</dd></div>
           <div><dt>{t.guests}</dt><dd>{confirmation.guests}</dd></div>
+          <div><dt>{t.name}</dt><dd>{name}</dd></div>
+          <div><dt>{t.email}</dt><dd>{email}</dd></div>
+          <div><dt>{t.phone}</dt><dd>{phone}</dd></div>
           {confirmation.priceEstimate && (
-            <div>
-              <dt>{t.estimatedPrice}</dt>
-              <dd>{formatNumber(confirmation.priceEstimate.total)} {confirmation.priceEstimate.currency} ({confirmation.priceEstimate.nights} nuits)</dd>
-            </div>
+            <>
+              <div><dt>{t.documentLodgingTotal}</dt><dd>{formatNumber(confirmation.priceEstimate.lodgingTotal)} {confirmation.priceEstimate.currency}</dd></div>
+              {confirmation.priceEstimate.lines.map(line=><div key={line.id}><dt>{line.name[locale]} × {line.quantity}</dt><dd>{formatNumber(line.lineTotal)} {line.currency}</dd></div>)}
+              <div><dt>{t.documentOptionsTotal}</dt><dd>{formatNumber(confirmation.priceEstimate.optionsTotal)} {confirmation.priceEstimate.currency}</dd></div>
+              <div><dt>{t.documentTotal}</dt><dd>{formatNumber(confirmation.priceEstimate.total)} {confirmation.priceEstimate.currency} ({confirmation.priceEstimate.nights} nuits)</dd></div>
+            </>
           )}
           <div><dt>{t.status}</dt><dd>{t.pending}</dd></div>
         </dl>
+        <a className="button button--dark" href={`/api/reservations/${encodeURIComponent(confirmation.reference)}/document?token=${encodeURIComponent(confirmation.documentToken)}&locale=${locale}`}>{t.downloadPdf}</a>
         <button
           type="button"
           className="button button--dark"
@@ -255,6 +278,13 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
               />
             </label>
           </div>
+          {(["MEAL","SERVICE"] as const).map(kind=>{
+            const group=bookingOptions.filter(option=>option.kind===kind);
+            return <fieldset className="booking-option-group" key={kind}><legend>{kind==="MEAL"?t.meals:t.services}</legend>{group.length?group.map(option=>{
+              const selection=selectedOptions.find(item=>item.id===option.id);
+              return <label className="booking-option" key={option.id}><span><input type="checkbox" checked={Boolean(selection)} onChange={e=>{setSelectedOptions(current=>e.target.checked?[...current,{id:option.id,quantity:1}]:current.filter(item=>item.id!==option.id));setAvailable(null);setPriceEstimate(null)}}/><strong>{option.name}</strong>{option.description&&<small>{option.description}</small>}<small>{formatNumber(option.unitPrice)} {option.currency} · {t[option.pricingBasis as keyof typeof t]??option.pricingBasis}</small></span>{selection&&option.pricingBasis==="PER_ITEM"&&<span>{t.quantity}<select aria-label={`${t.quantity}: ${option.name}`} value={selection.quantity} onChange={e=>{setSelectedOptions(current=>current.map(item=>item.id===option.id?{...item,quantity:Number(e.target.value)}:item));setAvailable(null);setPriceEstimate(null)}}>{Array.from({length:20},(_,i)=><option value={i+1} key={i+1}>{i+1}</option>)}</select></span>}</label>
+            }):<p>{t.noOptions}</p>}</fieldset>
+          })}
           {available !== null && available > 0 && (
             <p className="booking-availability">{t.available.replace("{count}", String(available))}</p>
           )}
@@ -309,12 +339,7 @@ export function BookingForm({ locale, initialStay, options }: { locale: Locale; 
             <h3>{t.review}</h3>
             <p>{stayName(stay)} · {checkIn} → {checkOut} · {guests} {t.guests.toLowerCase()}</p>
             {priceEstimate && (
-              <p style={{ fontWeight: 600, color: "var(--forest)" }}>
-                {t.estimatedTotal
-                  .replace("{total}", formatNumber(priceEstimate.total))
-                  .replace("{currency}", priceEstimate.currency)
-                  .replace("{nights}", String(priceEstimate.nights))}
-              </p>
+              <div className="booking-quote-lines"><p>{t.documentLodgingTotal}: {formatNumber(priceEstimate.lodgingTotal)} {priceEstimate.currency}</p>{priceEstimate.lines.map(line=><p key={line.id}>{line.name[locale]} × {line.quantity}: {formatNumber(line.lineTotal)} {line.currency}</p>)}<p><strong>{t.documentTotal}: {formatNumber(priceEstimate.total)} {priceEstimate.currency}</strong></p></div>
             )}
             <p>{t.pendingNote}</p>
           </div>

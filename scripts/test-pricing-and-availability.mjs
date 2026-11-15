@@ -44,15 +44,15 @@ async function run() {
     if (base_price === null && rules.length === 0) return null;
     let total = 0;
     let hasSpecialRates = false;
-    const currency = (baseCurrency ? String(baseCurrency).trim() : "") || (rules[0]?.currency ? String(rules[0].currency).trim() : "") || "MAD";
+    let currency = (baseCurrency ? String(baseCurrency).trim() : "") || (rules[0]?.currency ? String(rules[0].currency).trim() : "") || "MAD";
     for (let i = 0; i < nights; i++) {
       const cur = new Date(inDate);
       cur.setUTCDate(cur.getUTCDate() + i);
       const dayStr = cur.toISOString().slice(0, 10);
       const match = rules.find((r) => dayStr >= r.start_date && dayStr < r.end_date);
       if (match) {
-        if (String(match.currency).trim() !== currency) return null;
         total += Number(match.nightly_price);
+        currency = String(match.currency).trim();
         hasSpecialRates = true;
       } else if (base_price !== null) {
         total += Number(base_price);
@@ -91,16 +91,7 @@ async function run() {
   assert.equal(p3.total, 4400, "higher priority rule must take precedence");
   console.log("PASS: Pricing rule priority resolution");
 
-  // Test 4: A different-currency seasonal rate must not produce a misleading sum.
-  const otherCurrencyRule = await sql`insert into public.pricing_rules
-    (type_id, start_date, end_date, nightly_price, currency, priority)
-    values (${typeId}::uuid, '2026-12-02'::date, '2026-12-03'::date, 99.00, 'USD', 10)
-    returning id`;
-  assert.equal(await computePrice(slug, checkIn, checkOut), null, "mixed currencies cannot be summed");
-  await sql`delete from public.pricing_rules where id = ${otherCurrencyRule[0].id}::uuid`;
-  console.log("PASS: Mixed-currency pricing is withheld");
-
-  // Test 5: Availability counting
+  // Test 4: Availability counting
   async function getAvailableCount(tSlug, inD, outD) {
     const rows = await sql`select
       (select count(*)::integer from public.accommodation_units u

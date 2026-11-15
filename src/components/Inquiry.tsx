@@ -4,6 +4,7 @@ import { getDictionary } from "@/i18n";
 import { getBookingUrl } from "@/content/booking";
 import { publicSettings } from "@/server/settings";
 import { bookingText } from "@/i18n/booking";
+import { SocialIcon } from "@/components/SocialIcon";
 export async function Inquiry({ locale, detail = false, stay }: { locale: Locale; detail?: boolean; stay?: string }) {
   const t = getDictionary(locale);
   const settings = await publicSettings();
@@ -17,7 +18,7 @@ export async function Inquiry({ locale, detail = false, stay }: { locale: Locale
       <Link className="button button--light" href={`/${locale}/book${stay?`?stay=${stay}`:""}`}>{bookingText[locale].title}<span aria-hidden="true">↗</span></Link>
       {url && <a className="inquiry-instagram" href={url} target="_blank" rel="noopener noreferrer">{t.whatsappLabel}<span aria-hidden="true">↗</span></a>}
       {settings.whatsapp && <p className="inquiry-phone">{t.whatsappLabel} · {settings.whatsapp}</p>}
-      {settings.instagram && <a className="inquiry-instagram" href={settings.instagram} target="_blank" rel="noopener noreferrer">{t.inquiryInstagram} <span aria-hidden="true">↗</span></a>}
+      {settings.instagram && <a className="inquiry-instagram" href={settings.instagram} target="_blank" rel="noopener noreferrer"><SocialIcon network="instagram"/>{t.inquiryInstagram}</a>}
       {!detail && <div className="inquiry-stays"><Link href={`/${locale}/stays/dome`}>{t.dome.label} <span aria-hidden="true">↗</span></Link><Link href={`/${locale}/stays/cabin`}>{t.cabin.label} <span aria-hidden="true">↗</span></Link></div>}
     </div>
   </section>;

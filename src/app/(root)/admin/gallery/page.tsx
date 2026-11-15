@@ -1,0 +1,17 @@
+import Image from "next/image";
+import {db} from "@/server/db";
+import {requireAdminPage} from "@/server/admin-pages";
+import {AdminShell} from "@/components/admin/AdminShell";
+import {AdminField,AdminForm,TypeOptions} from "@/components/admin/AdminForms";
+import {DeleteImageButton} from "@/components/DeleteImageButton";
+
+export const dynamic="force-dynamic";
+export default async function GalleryPage({searchParams}:{searchParams:Promise<{error?:string;ok?:string}>}){
+  await requireAdminPage();const params=await searchParams;const sql=db();const [types,images]=await Promise.all([sql`select * from public.accommodation_types order by created_at`,sql`select i.*,t.names from public.accommodation_images i join public.accommodation_types t on t.id=i.type_id order by t.slug,i.sort_order,i.created_at`]);
+  return <AdminShell active="/admin/gallery" title="Galerie & photos" description="Les images donnent le ton du séjour. Gardez les photos bien ordonnées et leurs descriptions accessibles.">
+    {params.ok&&<p className="admin-success" role="status">Modification enregistrée.</p>}{params.error&&<p className="admin-alert" role="alert">Action refusée : {params.error}</p>}
+    <div className="admin-row-actions"><AdminForm action="seed_default_photos" returnTo="/admin/gallery"><input type="hidden" name="slug" value="dome"/><button className="admin-quiet">Importer les photos existantes du dôme</button></AdminForm><AdminForm action="seed_default_photos" returnTo="/admin/gallery"><input type="hidden" name="slug" value="cabin"/><button className="admin-quiet">Importer les photos existantes du chalet</button></AdminForm></div>
+    <form className="admin-form admin-upload" method="post" action="/api/admin/images" encType="multipart/form-data"><input type="hidden" name="return_to" value="/admin/gallery"/><label>Hébergement<select name="type_id"><TypeOptions types={types}/></select></label><AdminField label="Description FR" name="alt_fr" required/><AdminField label="Description EN" name="alt_en" required/><AdminField label="الوصف بالعربية" name="alt_ar" required/><label>Image JPEG, PNG ou WebP (5 Mo max)<input name="file" type="file" accept="image/jpeg,image/png,image/webp" required/></label><button className="admin-button">Importer la photo</button></form>
+    <div className="admin-image-grid">{images.map(image=>{const local=String(image.storage_path).startsWith("local:");const src=local?`/${String(image.storage_path).replace(/^local:/,"")}`:`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/accommodation-images/${String(image.storage_path).split("/").map(encodeURIComponent).join("/")}`;return <article className="admin-image" key={image.id}><Image src={src} alt={image.alt_text?.fr||"Photo de l’hébergement"} width={image.width} height={image.height}/><p><strong>{image.names?.fr}</strong> · <small>{local?"Photo d’origine":"Téléversée"}</small></p><AdminForm action="image_meta" returnTo="/admin/gallery"><input type="hidden" name="id" value={image.id}/><label>Usage<select name="role" defaultValue={image.role}><option value="gallery">Galerie</option><option value="featured">À la une</option><option value="hero">Héro</option></select></label><AdminField label="Ordre" name="sort_order" type="number" value={image.sort_order}/><button className="admin-button">Enregistrer</button></AdminForm><DeleteImageButton id={image.id}/></article>})}</div>
+  </AdminShell>;
+}

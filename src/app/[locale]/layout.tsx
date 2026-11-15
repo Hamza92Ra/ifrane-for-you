@@ -4,6 +4,8 @@ import { isLocale, locales, getDictionary } from "@/i18n";
 import { SiteFooter } from "@/components/SiteFooter";
 import { sansFont, serifFont, arabicFont } from "@/fonts";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { publicSettings } from "@/server/settings";
+import { MobileBookingShortcut } from "@/components/MobileBookingShortcut";
 import "../globals.css";
 
 export function generateStaticParams() { return locales.map((locale) => ({ locale })); }
@@ -24,5 +26,6 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const t = getDictionary(locale);
-  return <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}><body className={`${serifFont.variable} ${sansFont.variable} ${arabicFont.variable}`}><a className="skip-link" href="#main">{t.skip}</a>{children}<SiteFooter locale={locale}/><WhatsAppButton locale={locale}/></body></html>;
+  const settings=await publicSettings();
+  return <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}><body className={`${serifFont.variable} ${sansFont.variable} ${arabicFont.variable}`}><a className="skip-link" href="#main">{t.skip}</a>{children}<SiteFooter locale={locale} settings={settings}/><MobileBookingShortcut locale={locale}/><WhatsAppButton locale={locale} number={settings.whatsapp}/></body></html>;
 }
